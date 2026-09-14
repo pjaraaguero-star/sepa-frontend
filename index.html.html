@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- 
+      ========================================================================
+      NOTA DE ARQUITECTURA DE RED Y SEGURIDAD PARA PRODUCCIÓN WEB:
+      ========================================================================
+      1. Servidor Web (Nginx / Apache / Cloudflare): 
+         Emitir siempre las directivas de seguridad como cabeceras HTTP reales, no como etiquetas meta:
+         - X-Content-Type-Options: nosniff
+         - X-Frame-Options: DENY
+         - Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' /api/v1/;
+      
+      2. Compilador CSS: 
+         El CDN de Tailwind está activo para desarrollo. En el pipeline CI/CD final, reemplazar por una hoja de estilos estática (CSS purgado) para evitar la carga del compilador JIT en el navegador del cliente.
+      
+      3. SRI (Subresource Integrity): 
+         Generar los hashes correspondientes (sha384-...) e incluirlos en los scripts externos una vez fijadas las versiones en producción.
+    -->
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Librerías Externas con Integridad de Subrecursos (SRI) y Políticas Referrer Seguras -->
+    <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>    
+    <style>
+
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .modern-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .modern-scroll::-webkit-scrollbar-track { background: transparent; }
+        .modern-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .modern-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        @keyframes windowPop {
+            0% { transform: scale(0.96); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .window-animate {
+            animation: windowPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .grid-calendar {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+        }
+
+        @media print {
+            body { background: white !important; }
+            .no-print { display: none !important; }
+            .window-container { box-shadow: none !important; border: 1px solid #ccc !important; }
+            table { min-width: 100% !important; }
+            .overflow-x-auto { overflow: visible !important; }
+        }
+    </style>
+</head>
+<body class="relative min-h-screen flex flex-col bg-slate-100/90 text-slate-800">
+
+    <!-- PANTALLA DE ACCESO (LOGIN) -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#edf2f7] overflow-hidden select-none">
+        
+        <!-- Elemento puramente decorativo oculto para lectores de pantalla -->
+        <svg aria-hidden="true" focusable="false" class="fixed inset-0 w-full h-full pointer-events-none select-none z-0" 
+             viewBox="0 0 1000 480" 
+             preserveAspectRatio="xMidYMid slice" 
+             xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <filter id="calBlur" x="-30%" y="-30%" width="160%" height="160%">
+                    <feGaussianBlur stdDeviation="2.8" />
+                </filter>
+            </defs>
+            <g font-family="'Inter', -apple-system, BlinkMacSystemFont, sans-serif" font-weight="900" fill="#334155" opacity="0.22" filter="url(#calBlur)" letter-spacing="-0.04em">
+                <text x="95"  y="35"  font-size="120" text-anchor="middle" transform="rotate(-24, 95, 35)">4</text>
+                <text x="35"  y="225" font-size="125" text-anchor="middle" transform="rotate(-24, 35, 225)">3</text>
+                <text x="75"  y="395" font-size="125" text-anchor="middle" transform="rotate(-24, 75, 395)">19</text>
+                <text x="120" y="530" font-size="125" text-anchor="middle" transform="rotate(-24, 120, 530)">26</text>
+                <text x="260" y="95"  font-size="125" text-anchor="middle" transform="rotate(-24, 260, 95)">14</text>
+                <text x="340" y="260" font-size="125" text-anchor="middle" transform="rotate(-24, 340, 260)">20</text>
+                <text x="380" y="430" font-size="125" text-anchor="middle" transform="rotate(-24, 380, 430)">27</text>
+                <text x="565" y="95"  font-size="125" text-anchor="middle" transform="rotate(-24, 565, 95)">21</text>
+                <text x="645" y="265" font-size="125" text-anchor="middle" transform="rotate(-24, 645, 265)">28</text>
+                <text x="685" y="435" font-size="125" text-anchor="middle" transform="rotate(-24, 685, 435)">4</text>
+                <text x="885" y="95"  font-size="125" text-anchor="middle" transform="rotate(-24, 885, 95)">29</text>
+                <text x="925" y="270" font-size="125" text-anchor="middle" transform="rotate(-24, 925, 270)">5</text>
+                <text x="965" y="440" font-size="125" text-anchor="middle" transform="rotate(-24, 965, 440)">12</text>
+            </g>
+        </svg>
+
+        <div class="relative z-10 w-full max-w-[365px] rounded-[20px] shadow-[0_20px_50px_rgba(15,23,42,0.22)] overflow-hidden border border-slate-700/20 window-animate bg-white">
+            <div class="bg-[#0e1422] pt-8 pb-5 px-6 text-center flex flex-col items-center justify-center select-none">
+                <div class="flex items-center justify-center gap-2 mb-2">
+                    <span class="text-[36px] font-[900] text-white tracking-[0.08em] font-sans leading-none">SEPA</span>
+                    <div class="flex items-center gap-1.5 ml-0.5">
+                        <span class="inline-block w-[6px] h-[6px] rounded-full bg-[#00d2ff] shadow-[0_0_5px_rgba(0,210,255,0.6)]"></span>
+                        <span class="inline-block w-[6px] h-[6px] bg-[#b042ff] rotate-45 rounded-[0.5px] shadow-[0_0_5px_rgba(176,66,255,0.5)]"></span>
+                    </div>
+                </div>
+                <div class="text-[9.5px] uppercase font-bold text-slate-300 tracking-[0.24em]">
+                    PLANIFICACIÓN DE OPERACIONES
+                </div>
+            </div>
+
+            <div class="bg-white px-7 py-6 flex flex-col gap-4">
+                <h2 class="text-center font-bold text-slate-800 text-[15px] tracking-tight">Acceso Operativo</h2>
+
+                <div id="loginError" aria-live="polite" class="hidden text-xs bg-red-50 text-red-600 p-2.5 rounded-lg border border-red-200 text-center font-medium"></div>
+
+                <form id="loginForm" class="space-y-3.5">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1" for="loginUser">Usuario</label>
+                        <div class="relative flex items-center">
+                            <i data-lucide="user" class="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" aria-hidden="true"></i>
+                            <input type="text" id="loginUser" required placeholder="Ingrese su usuario" autocomplete="username"
+                                class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 bg-white text-slate-800 placeholder-slate-400 font-medium">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1" for="loginPass">Contraseña</label>
+                        <div class="relative flex items-center">
+                            <i data-lucide="lock" class="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" aria-hidden="true"></i>
+                            <input type="password" id="loginPass" required placeholder="••••••••" autocomplete="current-password"
+                                class="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600/30 focus:border-blue-600 bg-white text-slate-800 placeholder-slate-400 font-medium">
+                        </div>
+                    </div>
+
+                    <button type="submit" id="btnLoginSubmit" class="w-full mt-2 py-2 px-4 rounded-lg bg-[#204a74] hover:bg-[#18395b] text-white font-semibold text-xs tracking-wide transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]">
+                        <span>Ingresar al Sistema</span>
+                        <i data-lucide="arrow-right" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                    </button>
+                </form>
+
+                <div class="pt-2 text-center text-[9px] text-slate-400">
+                    Acceso restringido. Solo personal autorizado.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL DE LA APLICACIÓN -->
+    <div id="appContainer" class="hidden flex flex-col min-h-screen w-full relative z-10">
+        
+        <header class="no-print px-6 sm:px-10 py-4 flex items-center justify-between select-none">
+            <div class="flex items-center gap-3.5">
+                <div class="bg-[#0e1422] px-3.5 py-1.5 rounded-xl shadow-xs flex items-center gap-1.5" aria-hidden="true">
+                    <span class="text-sm font-black text-white tracking-wider">SEPA</span>
+                    <span class="w-2 h-2 rounded-full bg-[#00d2ff] shadow-[0_0_4px_rgba(0,210,255,0.8)]"></span>
+                </div>
+                <div class="flex flex-col">
+                    <h1 class="text-sm sm:text-base font-bold text-slate-900 leading-tight">Planificación Operativa</h1>
+                    <p class="text-[11px] text-slate-500 font-normal leading-tight">Gestión logística de faenas y turnos</p>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl border border-slate-200/90 px-3.5 py-1.5 shadow-xs flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 border border-slate-200/80" aria-hidden="true">
+                    <i data-lucide="user" class="w-4 h-4"></i>
+                </div>
+                <div class="flex flex-col text-left">
+                    <span id="sessionUserName" class="text-xs font-bold text-slate-800 leading-tight">Usuario</span>
+                    <span id="sessionRoleBadge" class="text-[11px] font-semibold text-emerald-600 leading-tight">Verificando...</span>
+                </div>
+                <div class="h-6 w-px bg-slate-200 mx-0.5" aria-hidden="true"></div>
+                <button type="button" id="btnLogout" aria-label="Cerrar sesión" class="flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors cursor-pointer py-1 px-1">
+                    <i data-lucide="log-out" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                    <span>Salir</span>
+                </button>
+            </div>
+        </header>
+
+        <nav aria-label="Módulos del Sistema" class="no-print w-full max-w-lg mx-auto px-4 pt-1 pb-4 flex justify-center">
+            <div class="bg-white rounded-2xl shadow-xs border border-slate-200/90 px-8 py-3.5 flex flex-col items-center gap-2.5 w-full">
+                <span class="text-xs text-slate-500 font-normal select-none">Seleccione el módulo de visualización:</span>
+                <div class="flex items-center gap-3 w-full justify-center">
+                    <button id="btnTabOperaciones" type="button" aria-current="page"
+                        class="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-blue-600 bg-blue-50/70 text-blue-700 shadow-sm">
+                        <i data-lucide="calendar" class="w-4 h-4 text-blue-600" aria-hidden="true"></i>
+                        <span>Operaciones (Mes)</span>
+                    </button>
+                    <button id="btnTabMercosur" type="button" 
+                        class="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300">
+                        <i data-lucide="table-2" class="w-4 h-4 text-indigo-600" aria-hidden="true"></i>
+                        <span>Mercosur (Semanal)</span>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <main class="w-full max-w-7xl mx-auto px-4 pb-8 flex-grow flex flex-col">
+            <div class="window-container bg-white rounded-2xl shadow-xl border border-slate-200/80 flex-grow flex flex-col overflow-hidden window-animate mt-2">
+                
+                <div class="h-11 bg-slate-50 border-b border-slate-200/80 flex items-center justify-between px-4 select-none">
+                    <div class="flex items-center gap-2.5">
+                        <div class="text-blue-600" aria-hidden="true">
+                            <i data-lucide="calendar-check-2" class="w-4 h-4"></i>
+                        </div>
+                        <span id="windowHeaderTitle" class="text-xs font-bold text-slate-700 tracking-wide" aria-live="polite">Calendario de Operaciones</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 no-print">
+                        <button type="button" id="btnPrintReport" aria-label="Imprimir Reporte Actual" class="text-xs font-medium text-slate-600 hover:bg-slate-200/70 py-1 px-2.5 rounded-md transition-colors flex items-center gap-1 mr-2">
+                            <i data-lucide="printer" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                            <span class="hidden sm:inline">Imprimir Reporte</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CONTENIDO 1: MÓDULO OPERACIONES -->
+                <div id="moduleOperaciones" class="flex-grow flex flex-col">
+                    <div class="p-3.5 border-b border-slate-100 flex items-center justify-between no-print bg-white">
+                        <div class="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                            <button type="button" id="btnPrevMonth" aria-label="Mes anterior" class="p-1.5 hover:bg-white hover:shadow-xs rounded-lg text-slate-700 transition-all">
+                                <i data-lucide="chevron-left" class="w-4 h-4" aria-hidden="true"></i>
+                            </button>
+                            <div class="flex items-center px-3 border-x border-slate-200 mx-1">
+                                <select id="selectMonth" aria-label="Seleccionar Mes" class="bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer pr-1"></select>
+                                <select id="selectYear" aria-label="Seleccionar Año" class="bg-transparent font-bold text-xs text-slate-700 outline-none cursor-pointer"></select>
+                            </div>
+                            <button type="button" id="btnNextMonth" aria-label="Mes siguiente" class="p-1.5 hover:bg-white hover:shadow-xs rounded-lg text-slate-700 transition-all">
+                                <i data-lucide="chevron-right" class="w-4 h-4" aria-hidden="true"></i>
+                            </button>
+                        </div>
+
+                        <div class="text-xs font-medium text-slate-500">
+                            Haga clic en cualquier día para programar faenas
+                        </div>
+                    </div>
+
+                    <div class="flex-grow flex flex-col p-3 bg-slate-100/40">
+                        <div class="bg-white border border-slate-200/80 rounded-xl shadow-xs overflow-hidden flex-grow flex flex-col">
+                            <div class="grid grid-cols-7 bg-slate-100/90 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase tracking-wider text-center py-2.5" aria-hidden="true">
+                                <div class="border-r border-slate-200/60">Lunes</div>
+                                <div class="border-r border-slate-200/60">Martes</div>
+                                <div class="border-r border-slate-200/60">Miércoles</div>
+                                <div class="border-r border-slate-200/60">Jueves</div>
+                                <div class="border-r border-slate-200/60">Viernes</div>
+                                <div class="border-r border-slate-200/60">Sábado</div>
+                                <div class="text-red-600">Domingo</div>
+                            </div>
+                            <div id="calendarGrid" class="grid-calendar flex-grow bg-slate-200/60 gap-px">
+                                <!-- Celdas dinámicas -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTENIDO 2: MÓDULO MERCOSUR -->
+                <div id="moduleMercosur" class="hidden flex flex-grow flex-col">
+                    <div class="p-4 border-b border-slate-200 bg-white no-print">
+                        <div class="flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center">
+                            
+                            <div class="flex flex-wrap items-center gap-3 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                                <div class="flex items-center gap-2 px-2">
+                                    <label for="mercosurStart" class="text-[11px] font-bold text-slate-500 uppercase">Desde</label>
+                                    <input id="mercosurStart" type="date" class="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer">
+                                </div>
+                                <div class="w-px h-5 bg-slate-300" aria-hidden="true"></div>
+                                <div class="flex items-center gap-2 px-2">
+                                    <label for="mercosurEnd" class="text-[11px] font-bold text-slate-500 uppercase">Hasta</label>
+                                    <input id="mercosurEnd" type="date" class="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer">
+                                </div>
+                            </div>
+
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button type="button" id="btnQuickRange7" class="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors shadow-sm">7 Días</button>
+                                <button type="button" id="btnQuickRange14" class="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors shadow-sm">14 Días</button>
+                                <button type="button" id="btnQuickRangeMonth" class="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-600 transition-colors shadow-sm">Mes Actual</button>
+                                
+                                <button type="button" id="btnExportImage" class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all shadow-sm shadow-blue-500/20 active:scale-95 cursor-pointer ml-2">
+                                    <i data-lucide="image" class="w-3.5 h-3.5" aria-hidden="true"></i>
+                                    Generar Imagen
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 flex flex-wrap gap-1.5 items-center no-scrollbar overflow-x-auto pb-0.5" id="mercosurDayChips" aria-label="Días seleccionados">
+                            <!-- Inyectado dinámicamente -->
+                        </div>
+                    </div>
+
+                    <div class="flex-grow p-3.5 flex flex-col overflow-hidden bg-slate-50/50">
+                        <div class="bg-white border border-slate-200/80 rounded-xl shadow-xs flex-grow overflow-hidden flex flex-col">
+                            <div class="overflow-x-auto overflow-y-auto modern-scroll flex-grow relative" id="mercosurTableContainer">
+                                <table class="w-full text-left border-collapse min-w-[880px]" id="mercosurMainTable">
+                                    <thead class="bg-slate-100/90 sticky top-0 z-10 border-b border-slate-200 text-slate-600 text-xs font-bold uppercase tracking-wider">
+                                        <tr>
+                                            <th scope="col" class="py-2.5 px-3 w-28 border-r border-slate-200/80">Fecha</th>
+                                            <th scope="col" class="py-2.5 px-2 w-16 text-center border-r border-slate-200/80">Turno</th>
+                                            <th scope="col" class="py-2.5 px-3 w-36 border-r border-slate-200/80">Supervisor</th>
+                                            <th scope="col" class="py-2.5 px-3 border-r border-slate-200/80">Actividad</th>
+                                            <th scope="col" class="py-2.5 px-3 border-r border-slate-200/80">Calidad</th>
+                                            <th scope="col" class="py-2.5 px-2.5 w-20 border-r border-slate-200/80">TMH</th>
+                                            <th scope="col" class="py-2.5 px-3 border-r border-slate-200/80">Ubicación</th>
+                                            <th scope="col" class="py-2.5 px-3 border-r border-slate-200/80">Comentarios</th>
+                                            <th scope="col" class="py-2.5 px-3">Equipo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="mercosurTableBody" class="text-xs">
+                                        <!-- Generado dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL DE EDICIÓN DE FAENAS DIARIAS -->
+    <div id="dayEditorModal" role="dialog" aria-modal="true" aria-labelledby="editorModalTitle" tabindex="-1" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50 no-print transition-opacity">
+        <div id="dayEditorModalContent" class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh] overflow-hidden window-animate border border-slate-200">
+            
+            <div class="px-6 py-3.5 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+                <div class="flex items-center gap-2.5">
+                    <div class="p-1.5 bg-blue-100 text-blue-600 rounded-lg" aria-hidden="true">
+                        <i data-lucide="calendar-edit" class="w-4 h-4"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-800" id="editorModalTitle">Operaciones del Día</h3>
+                        <p class="text-[11px] text-slate-500 font-medium">Programación operativa de faenas y supervisión</p>
+                    </div>
+                </div>
+                <button type="button" id="btnCloseEditorModalX" aria-label="Cerrar modal de edición" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 rounded-lg transition-colors">
+                    <i data-lucide="x" class="w-4 h-4" aria-hidden="true"></i>
+                </button>
+            </div>
+
+            <div id="editorReadOnlyBanner" aria-live="polite" class="hidden bg-amber-50 border-b border-amber-200 px-6 py-2 text-xs font-semibold text-amber-800 flex items-center gap-2">
+                <i data-lucide="shield-alert" class="w-4 h-4 text-amber-600" aria-hidden="true"></i>
+                Modo Solo Lectura - El usuario actual no posee permisos para modificar o eliminar datos.
+            </div>
+
+            <div class="p-6 overflow-y-auto modern-scroll flex-grow space-y-5 bg-slate-50/40">
+                
+                <div class="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+                    <div class="flex items-center gap-2.5">
+                        <div class="p-1.5 bg-red-50 text-red-500 rounded-lg" aria-hidden="true">
+                            <i data-lucide="calendar-off" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-xs text-slate-800">Día Feriado / Suspensión de Faena</p>
+                            <p class="text-[11px] text-slate-500">Inhabilita la jornada y marca el día sin actividades.</p>
+                        </div>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="modalFeriadoSwitch" aria-label="Marcar como feriado o suspensión" class="sr-only peer">
+                        <div class="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+                    </label>
+                </div>
+
+                <div id="editorTurnosContainer" class="space-y-5 transition-opacity">
+                    
+                    <!-- TURNO A -->
+                    <div class="bg-white border border-amber-200/80 rounded-xl overflow-hidden shadow-sm">
+                        <div class="bg-amber-50/70 px-4 py-2.5 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-amber-800 font-bold text-xs">
+                                <i data-lucide="sun" class="w-4 h-4 text-amber-600" aria-hidden="true"></i> TURNO A
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label for="supAInput" class="text-xs font-semibold text-slate-600">Supervisor:</label>
+                                <input type="text" id="supAInput" list="supervisoresList" aria-label="Supervisor Turno A" class="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white w-44 font-medium" placeholder="Seleccionar supervisor...">
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto modern-scroll">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead class="bg-slate-50/60 text-[11px] text-slate-500 border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-1.5 px-3 font-semibold">Actividad</th>
+                                        <th class="py-1.5 px-3 font-semibold">Calidad</th>
+                                        <th class="py-1.5 px-3 font-semibold w-20">TMH</th>
+                                        <th class="py-1.5 px-3 font-semibold">Ubicación</th>
+                                        <th class="py-1.5 px-3 font-semibold">Comentarios</th>
+                                        <th class="py-1.5 px-3 font-semibold">Equipo</th>
+                                        <th class="py-1.5 px-2 w-10 text-center act-header-col"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTurnoA" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="p-2.5 bg-slate-50/40 border-t border-slate-100 flex gap-2 editor-action-bar">
+                            <button type="button" id="btnAddPrincipalA" class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-amber-800 bg-amber-100/60 hover:bg-amber-100 rounded-md transition-colors">
+                                <i data-lucide="plus" class="w-3.5 h-3.5" aria-hidden="true"></i> Principal
+                            </button>
+                            <button type="button" id="btnAddSubA" class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-colors shadow-sm">
+                                <i data-lucide="corner-down-right" class="w-3 h-3" aria-hidden="true"></i> Sub-Detalle
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- TURNO B -->
+                    <div class="bg-white border border-blue-200/80 rounded-xl overflow-hidden shadow-sm">
+                        <div class="bg-blue-50/70 px-4 py-2.5 border-b border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center gap-2 text-blue-800 font-bold text-xs">
+                                <i data-lucide="moon" class="w-4 h-4 text-blue-600" aria-hidden="true"></i> TURNO B
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label for="supBInput" class="text-xs font-semibold text-slate-600">Supervisor:</label>
+                                <input type="text" id="supBInput" list="supervisoresList" aria-label="Supervisor Turno B" class="px-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white w-44 font-medium" placeholder="Seleccionar supervisor...">
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto modern-scroll">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead class="bg-slate-50/60 text-[11px] text-slate-500 border-b border-slate-100">
+                                    <tr>
+                                        <th class="py-1.5 px-3 font-semibold">Actividad</th>
+                                        <th class="py-1.5 px-3 font-semibold">Calidad</th>
+                                        <th class="py-1.5 px-3 font-semibold w-20">TMH</th>
+                                        <th class="py-1.5 px-3 font-semibold">Ubicación</th>
+                                        <th class="py-1.5 px-3 font-semibold">Comentarios</th>
+                                        <th class="py-1.5 px-3 font-semibold">Equipo</th>
+                                        <th class="py-1.5 px-2 w-10 text-center act-header-col"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyTurnoB" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+
+                        <div class="p-2.5 bg-slate-50/40 border-t border-slate-100 flex gap-2 editor-action-bar">
+                            <button type="button" id="btnAddPrincipalB" class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-blue-800 bg-blue-100/60 hover:bg-blue-100 rounded-md transition-colors">
+                                <i data-lucide="plus" class="w-3.5 h-3.5" aria-hidden="true"></i> Principal
+                            </button>
+                            <button type="button" id="btnAddSubB" class="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-colors shadow-sm">
+                                <i data-lucide="corner-down-right" class="w-3 h-3" aria-hidden="true"></i> Sub-Detalle
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div id="editorAdminTools" class="flex items-center gap-3 w-full sm:w-auto">
+                    <button type="button" id="btnClearDayBtn" aria-label="Vaciar todas las operaciones del día" class="flex items-center gap-1 text-xs font-semibold text-red-600 hover:text-red-800 transition-colors">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5" aria-hidden="true"></i> Vaciar Día
+                    </button>
+                    <div class="w-px h-3.5 bg-slate-300" aria-hidden="true"></div>
+                    <button type="button" id="btnCopyPrevDayBtn" aria-label="Copiar operaciones del día anterior" class="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                        <i data-lucide="copy" class="w-3.5 h-3.5" aria-hidden="true"></i> Copiar día anterior
+                    </button>
+                </div>
+                
+                <div class="flex gap-2 w-full sm:w-auto justify-end">
+                    <button type="button" id="btnCloseEditorBottomBtn" class="px-4 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+                        Cerrar
+                    </button>
+                    <button type="button" id="btnSaveModal" class="px-5 py-1.5 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-500/30">
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- MODAL DE VISTA PREVIA DE IMAGEN (MERCOSUR) -->
+    <div id="imagePreviewModal" role="dialog" aria-modal="true" aria-labelledby="imgPreviewTitle" tabindex="-1" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 hidden z-[70] no-print">
+        <div id="imagePreviewModalContent" class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden window-animate">
+            <div class="px-5 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600" aria-hidden="true"></i>
+                    <h3 class="text-xs font-bold text-slate-800" id="imgPreviewTitle">Planificación Mercosur Generada</h3>
+                </div>
+                <button type="button" id="btnCloseImgModalX" aria-label="Cerrar vista previa" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-4 h-4" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="p-4 bg-slate-100 flex-grow overflow-auto text-center flex flex-col items-center">
+                <div id="clipboardStatusBanner" aria-live="polite" class="hidden text-xs px-4 py-2 rounded-lg border mb-3 flex items-center gap-2 transition-all">
+                    <i id="clipboardStatusIcon" data-lucide="clipboard-check" class="w-4 h-4" aria-hidden="true"></i>
+                    <span id="clipboardStatusText"></span>
+                </div>
+                <img id="exportImgPreview" src="" alt="Vista previa de la planificación Mercosur generada para exportar" class="max-w-full rounded border border-slate-300 shadow-md">
+            </div>
+            <div class="px-5 py-3 bg-white border-t border-slate-200 flex justify-end gap-2">
+                <a id="btnDownloadImg" href="#" download="Mercosur_Planificacion.png" class="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-1.5">
+                    <i data-lucide="download" class="w-3.5 h-3.5" aria-hidden="true"></i> Descargar Imagen
+                </a>
+                <button type="button" id="btnCloseImgModalBottom" class="px-4 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL REUTILIZABLE: CONFIRMACIÓN Y AVISO INSTITUCIONAL -->
+    <div id="genericConfirmModal" role="alertdialog" aria-modal="true" aria-labelledby="genericConfirmTitle" aria-describedby="genericConfirmText" tabindex="-1" class="fixed inset-0 bg-slate-900/30 backdrop-blur-sm flex items-center justify-center p-4 hidden z-[80] no-print">
+        <div id="genericConfirmModalContent" class="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden window-animate p-5">
+            <div class="flex items-center gap-2.5 mb-2.5 text-amber-600" id="genericModalHeaderIcon">
+                <i data-lucide="alert-triangle" class="w-5 h-5" aria-hidden="true"></i>
+                <h4 class="text-sm font-bold text-slate-800" id="genericConfirmTitle">Confirmación</h4>
+            </div>
+            <p id="genericConfirmText" class="text-xs text-slate-600 mb-5 leading-relaxed"></p>
+            <div class="flex justify-end gap-2">
+                <button type="button" id="genericConfirmCancelBtn" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">Cancelar</button>
+                <button type="button" id="genericConfirmOkBtn" class="px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg">Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DATALISTS DE AUTOCOMPLETADO -->
+    <datalist id="supervisoresList">
+        <option value="N. Vega"></option>
+        <option value="C. Cayupi"></option>
+        <option value="S. Alvarez"></option>
+        <option value="J. Anza"></option>
+    </datalist>
+    <datalist id="actividadesList">
+        <option value="Recepcion"></option>
+        <option value="Limpieza"></option>
+        <option value="Harneo 1/8"></option>
+        <option value="Mezcla"></option>
+        <option value="Homogenizacion"></option>
+        <option value="Pisoneo"></option>
+        <option value="Repesos"></option>
+        <option value="Despacho Rotainers"></option>
+    </datalist>
+    <datalist id="calidadesList">
+        <option value="C. Las Luces"></option>
+        <option value="Zaldivar"></option>
+        <option value="Codelco Chuqui"></option>
+        <option value="Cominpo"></option>
+    </datalist>
+    <datalist id="equiposList">
+        <option value="Cargador 1"></option>
+        <option value="Cargador 2"></option>
+        <option value="Cargador 3"></option>
+        <option value="Stacker"></option>
+        <option value="Horquilla"></option>
+        <option value="Mini"></option>
+    </datalist>
+
+    <script>
+        /**
+         * SISTEMA INTEGRAL SEPA - PLANIFICACIÓN DE OPERACIONES
+         * Arquitectura de Red Asíncrona (Fetch API) y Manejo Estricto del DOM.
+         */
+        var App = (function () {
+            "use strict";
+
+            // ------------------------------------------------------------------------
+            // CAPA DE RED (Backend Integration via Fetch API)
+            // Todas las credenciales y el almacenamiento se han delegado al servidor.
+            // Los Endpoints '/api/v1/...' deben implementarse en el backend (Node/Python).
+            // ------------------------------------------------------------------------
+            var API_BASE = 'https://sepa-backend-8a5c.onrender.com/api/v1';
+
+            var BackendAPI = Object.freeze({
+                login: function(username, password) {
+                    return fetch(API_BASE + '/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: username, password: password })
+                    })
+                    .then(function(res) {
+                        if (!res.ok) throw new Error("Credenciales inválidas");
+                        return res.json();
+                    })
+                    .catch(function(err) {
+                        console.error("Fallo en la autenticación de red:", err);
+                        return { success: false, error: "Conexión rechazada por el servidor." };
+                    });
+                },
+                fetchData: function(token) {
+                    return fetch(API_BASE + '/operaciones', {
+                        method: 'GET',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    })
+                    .then(function(res) {
+                        if (!res.ok) throw new Error("Acceso denegado");
+                        return res.json();
+                    })
+                    .catch(function(err) {
+                        console.error("Fallo al obtener datos del servidor:", err);
+                        return { success: false, data: {} };
+                    });
+                },
+                syncData: function(payload, token) {
+                    return fetch(API_BASE + '/operaciones', {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
+                        },
+                        body: JSON.stringify({ data: payload })
+                    })
+                    .then(function(res) {
+                        if (!res.ok) throw new Error("Fallo al guardar datos");
+                        return res.json();
+                    })
+                    .catch(function(err) {
+                        console.error("Fallo de sincronización:", err);
+                        return { success: false };
+                    });
+                }
+            });
+            // ------------------------------------------------------------------------
+
+            var MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            var DAYS_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+            var State = {
+                currentUser: null,
+                sessionToken: null,
+                currentModule: "operaciones",
+                currentYear: 2026,
+                currentMonth: 8,
+                data: { days: {} },
+                selectedDayKey: null,
+                mercosurStart: new Date(2026, 8, 13),
+                mercosurEnd: new Date(2026, 8, 20),
+                visibleMercosurDays: null,
+                pendingConfirmAction: null,
+                previouslyFocusedEl: null
+            };
+
+            var Utils = {
+                escapeHTML: function (str) {
+                    if (str === null || str === undefined) return '';
+                    return String(str).replace(/[&<>'"]/g, function (t) {
+                        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t];
+                    });
+                },
+                formatYMD: function (d) {
+                    var y = d.getFullYear();
+                    var m = String(d.getMonth() + 1).padStart(2, '0');
+                    var day = String(d.getDate()).padStart(2, '0');
+                    return y + '-' + m + '-' + day;
+                },
+                parseYMD: function (str) {
+                    var parts = str.split('-');
+                    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+                },
+                uid: function () {
+                    return 'row_' + Math.random().toString(36).substring(2, 11);
+                }
+            };
+
+            // RUTINAS DE ACCESIBILIDAD (WAI-ARIA)
+            var A11y = {
+                trapFocus: function (e, modalContentId) {
+                    var modalContent = document.getElementById(modalContentId);
+                    if (!modalContent) return;
+                    
+                    var focusableElements = modalContent.querySelectorAll('a[href], button:not([disabled]), textarea:not([disabled]), input[type="text"]:not([disabled]), input[type="date"]:not([disabled]), input[type="number"]:not([disabled]), input[type="checkbox"]:not([disabled]), select:not([disabled])');
+                    if (focusableElements.length === 0) return;
+                    
+                    var firstElement = focusableElements[0];
+                    var lastElement = focusableElements[focusableElements.length - 1];
+
+                    if (e.key === 'Tab') {
+                        if (e.shiftKey) {
+                            if (document.activeElement === firstElement) {
+                                e.preventDefault();
+                                lastElement.focus();
+                            }
+                        } else {
+                            if (document.activeElement === lastElement) {
+                                e.preventDefault();
+                                firstElement.focus();
+                            }
+                        }
+                    }
+                },
+                openModal: function(modalId) {
+                    State.previouslyFocusedEl = document.activeElement;
+                    var m = document.getElementById(modalId);
+                    m.classList.remove('hidden');
+                    m.focus(); 
+                    Render.refreshIcons(m);
+                },
+                closeModal: function(modalId) {
+                    document.getElementById(modalId).classList.add('hidden');
+                    if (State.previouslyFocusedEl) {
+                        State.previouslyFocusedEl.focus();
+                        State.previouslyFocusedEl = null;
+                    }
+                }
+            };
+
+            var Auth = {
+                isLoggedIn: function () {
+                    return State.currentUser !== null && State.sessionToken !== null;
+                },
+                canEdit: function () {
+                    return Auth.isLoggedIn() && State.currentUser.role === 'admin';
+                }
+            };
+
+            var Storage = {
+                load: function () {
+                    return BackendAPI.fetchData(State.sessionToken).then(function(res) {
+                        if (res.success && res.data) {
+                            var parsed = res.data;
+                            for (var k in parsed) {
+                                var item = parsed[k];
+                                if (!item.feriado && 
+                                    (!item.supervisorA || !item.supervisorA.trim()) && 
+                                    (!item.supervisorB || !item.supervisorB.trim()) && 
+                                    (!item.turnoA || item.turnoA.length === 0) && 
+                                    (!item.turnoB || item.turnoB.length === 0)) {
+                                    delete parsed[k];
+                                }
+                            }
+                            State.data.days = parsed;
+                        } else if (!res.success) {
+                            Controller.showAlert("No se pudieron cargar los datos desde el servidor central.", "Error de Red");
+                        }
+                    });
+                },
+                save: function () {
+                    if (!Auth.canEdit()) return;
+                    BackendAPI.syncData(State.data.days, State.sessionToken).then(function(res) {
+                        if (res && !res.success) {
+                            Controller.showAlert("Los cambios no se pudieron guardar en el servidor.", "Error de Sincronización");
+                        }
+                    });
+                }
+            };
+
+            var Render = {
+                calendar: function () {
+                    var grid = document.getElementById('calendarGrid');
+                    grid.innerHTML = '';
+
+                    var firstDayIdx = new Date(State.currentYear, State.currentMonth, 1).getDay();
+                    var startOffset = firstDayIdx === 0 ? 6 : firstDayIdx - 1;
+                    var totalDays = new Date(State.currentYear, State.currentMonth + 1, 0).getDate();
+                    var prevMonthTotal = new Date(State.currentYear, State.currentMonth, 0).getDate();
+
+                    for (var i = startOffset; i > 0; i--) {
+                        grid.appendChild(Render.createCalendarCell(prevMonthTotal - i + 1, true, null));
+                    }
+
+                    for (var day = 1; day <= totalDays; day++) {
+                        var dateKey = State.currentYear + '-' + 
+                            String(State.currentMonth + 1).padStart(2, '0') + '-' + 
+                            String(day).padStart(2, '0');
+                        grid.appendChild(Render.createCalendarCell(day, false, dateKey));
+                    }
+
+                    var totalCells = startOffset + totalDays;
+                    var remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+                    for (var j = 1; j <= remaining; j++) {
+                        grid.appendChild(Render.createCalendarCell(j, true, null));
+                    }
+
+                    Render.refreshIcons(grid);
+                },
+
+                createCalendarCell: function (dayNum, isOut, key) {
+                    var cell = document.createElement('button');
+                    cell.type = "button";
+                    cell.className = "day-cell w-full h-full min-h-[160px] text-left flex flex-col p-2.5 bg-white relative transition-colors border-r border-b border-slate-200/70 " +
+                        (isOut ? "opacity-35 pointer-events-none bg-slate-50/70 cursor-default" : "hover:bg-slate-50/60 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500");
+                    
+                    if (!isOut && key) {
+                        cell.setAttribute('aria-label', "Día " + dayNum + ", " + (State.data.days[key] ? "con operaciones programadas" : "sin operaciones"));
+                        cell.addEventListener('click', function () { Controller.openDayEditor(key); });
+                    } else {
+                        cell.setAttribute('tabindex', '-1');
+                    }
+
+                    var header = document.createElement('div');
+                    header.className = "font-bold text-base text-slate-800 mb-1 px-0.5 select-none flex items-center justify-between w-full";
+                    header.innerHTML = '<span>' + dayNum + '</span>' + 
+                        (!isOut && Auth.canEdit() ? '<span class="opacity-0 group-hover:opacity-100 text-[10px] text-blue-600 font-semibold transition-opacity flex items-center gap-0.5"><i data-lucide="plus" class="w-3 h-3"></i> Faena</span>' : '');
+                    cell.appendChild(header);
+
+                    var content = document.createElement('div');
+                    content.className = "flex-grow flex flex-col gap-2 w-full";
+
+                    if (!isOut && key && State.data.days[key]) {
+                        var d = State.data.days[key];
+                        if (d.feriado) {
+                            content.innerHTML = '<div class="bg-red-50 text-red-700 font-bold p-3 rounded-xl text-center flex-grow flex items-center justify-center border border-red-200 text-xs shadow-sm">FERIADO</div>';
+                        } else {
+                            var hasTurnoA = (d.turnoA && d.turnoA.length > 0) || (d.supervisorA && d.supervisorA.trim() !== '');
+                            var hasTurnoB = (d.turnoB && d.turnoB.length > 0) || (d.supervisorB && d.supervisorB.trim() !== '');
+
+                            if (hasTurnoA || hasTurnoB) {
+                                content.innerHTML = 
+                                    Render.createTurnoCard('A', d.supervisorA, d.turnoA) +
+                                    Render.createTurnoCard('B', d.supervisorB, d.turnoB);
+                            }
+                        }
+                    }
+
+                    cell.appendChild(content);
+                    return cell;
+                },
+
+                createTurnoCard: function (trn, sup, acts) {
+                    var isA = trn === 'A';
+                    var bg = isA ? 'bg-[#fffdf0]' : 'bg-[#f0f7ff]';
+                    var border = isA ? 'border-[#fde68a]' : 'border-[#bfdbfe]';
+                    var textTurno = isA ? 'text-amber-800' : 'text-blue-800';
+                    var textSup = isA ? 'text-amber-950' : 'text-blue-950';
+                    var bulletColor = isA ? 'text-amber-500' : 'text-blue-500';
+                    var qualityColor = isA ? 'text-[#b45309]' : 'text-[#1d4ed8]';
+
+                    var html = '<div class="' + bg + ' border ' + border + ' rounded-lg p-2 flex flex-col gap-1 shadow-sm text-left w-full">' +
+                        '<div class="flex justify-between items-center border-b ' + border + ' pb-1 mb-0.5">' +
+                            '<span class="text-[10px] font-bold ' + textTurno + ' uppercase">TURNO ' + trn + '</span>' +
+                            '<span class="text-[10px] font-bold ' + textSup + ' truncate max-w-[65%]">' + Utils.escapeHTML(sup || '') + '</span>' +
+                        '</div>';
+
+                    if (acts && acts.length > 0) {
+                        acts.forEach(function (a) {
+                            html += '<div class="leading-tight py-0.5 w-full">' +
+                                '<div class="flex justify-between items-center text-[10.5px] text-slate-800">' +
+                                    '<span class="font-bold truncate pr-1 flex-grow"><span class="' + bulletColor + ' font-black mr-1">•</span>' + 
+                                    (a.isSubRow ? '<span class="text-slate-400 mr-0.5">↳</span>' : '') + Utils.escapeHTML(a.actividad || '') + '</span>' +
+                                    '<span class="font-bold shrink-0 text-slate-800 text-[10px] text-right">' + Utils.escapeHTML(a.ubicacion || '') + '</span>' +
+                                '</div>' +
+                                (a.calidad ? '<div class="text-[9px] italic ' + qualityColor + ' pl-3 truncate">' + Utils.escapeHTML(a.calidad) + '</div>' : '') +
+                            '</div>';
+                        });
+                    } else {
+                        html += '<div class="italic text-[9.5px] ' + (isA ? 'text-amber-600/70' : 'text-blue-600/70') + ' text-center py-1">Sin faenas</div>';
+                    }
+
+                    html += '</div>';
+                    return html;
+                },
+
+                mercosur: function () {
+                    var tbody = document.getElementById('mercosurTableBody');
+                    var chipsContainer = document.getElementById('mercosurDayChips');
+                    tbody.innerHTML = '';
+                    chipsContainer.innerHTML = '';
+
+                    var msDay = 24 * 60 * 60 * 1000;
+                    var diffDays = Math.round((State.mercosurEnd - State.mercosurStart) / msDay);
+                    if (diffDays < 0) diffDays = 0;
+
+                    if (State.visibleMercosurDays === null) {
+                        State.visibleMercosurDays = [];
+                        for (var i = 0; i <= diffDays; i++) State.visibleMercosurDays.push(i);
+                    }
+
+                    var tableHTML = '';
+
+                    for (var dayIdx = 0; dayIdx <= diffDays; dayIdx++) {
+                        var currDate = new Date(State.mercosurStart);
+                        currDate.setDate(currDate.getDate() + dayIdx);
+
+                        var isVisible = State.visibleMercosurDays.indexOf(dayIdx) !== -1;
+                        var dayName = DAYS_NAMES[currDate.getDay()];
+                        var dayNumber = currDate.getDate();
+
+                        var chip = document.createElement('button');
+                        chip.type = 'button';
+                        chip.className = "flex-shrink-0 px-2.5 py-1 text-[11px] rounded-lg border font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 " +
+                            (isVisible ? "border-blue-600 bg-blue-600 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50");
+                        chip.textContent = dayName + ' ' + dayNumber;
+                        chip.setAttribute('data-day-idx', dayIdx);
+                        chip.setAttribute('aria-pressed', isVisible ? 'true' : 'false');
+                        chipsContainer.appendChild(chip);
+
+                        if (!isVisible) continue;
+
+                        var key = Utils.formatYMD(currDate);
+                        var data = State.data.days[key] || { feriado: false, supervisorA: "", supervisorB: "", turnoA: [], turnoB: [] };
+                        var dateStr = String(dayNumber).padStart(2, '0') + '/' + 
+                                      String(currDate.getMonth() + 1).padStart(2, '0') + '/' + 
+                                      currDate.getFullYear();
+
+                        if (data.feriado) {
+                            tableHTML += '<tr class="border-b border-slate-200 bg-white">' +
+                                '<td class="py-2 px-3 align-top border-r border-slate-200/80 font-bold text-slate-800">' +
+                                    '<div>' + dateStr + '</div>' +
+                                    (Auth.canEdit() ? '<button type="button" aria-label="Editar feriado del ' + dateStr + '" data-action="edit-mercosur" data-key="' + key + '" class="mercosur-edit-btn text-[10px] text-blue-600 hover:underline font-bold mt-1 block">Editar</button>' : '') +
+                                '</td>' +
+                                '<td colspan="8" class="py-2 px-3 text-center bg-red-50/50 text-red-700 font-bold text-xs">FERIADO LEGAL / SIN ACTIVIDAD</td>' +
+                            '</tr>';
+                        } else {
+                            var tA = data.turnoA || [];
+                            var tB = data.turnoB || [];
+                            var countA = Math.max(1, tA.length);
+                            var countB = Math.max(1, tB.length);
+                            var totalDayRows = countA + countB;
+
+                            tableHTML += Render.buildMercosurRows(dateStr, 'A', data.supervisorA, tA, key, totalDayRows, true);
+                            tableHTML += Render.buildMercosurRows(dateStr, 'B', data.supervisorB, tB, key, totalDayRows, false);
+                        }
+                    }
+
+                    tbody.innerHTML = tableHTML || '<tr><td colspan="9" class="p-4 text-center text-slate-400 italic">No hay días seleccionados en el rango.</td></tr>';
+                    Render.refreshIcons(tbody);
+                },
+
+                buildMercosurRows: function (dateStr, trn, sup, acts, key, totalDayRows, isFirstTurnoOfDay) {
+                    var html = '';
+                    var count = Math.max(1, acts.length);
+                    var isA = trn === 'A';
+                    
+                    var tdTurnoBg = isA ? 'background-color: #fffdf5;' : 'background-color: #f7faff;';
+                    var badgeBg = isA ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-blue-100 text-blue-800 border-blue-300';
+                    var badgeHTML = '<div class="w-6 h-6 rounded flex items-center justify-center font-extrabold mx-auto text-xs border ' + badgeBg + '" aria-label="Turno ' + trn + '">' + trn + '</div>';
+
+                    for (var r = 0; r < count; r++) {
+                        html += '<tr class="hover:bg-slate-50/60 transition-colors">';
+
+                        if (isFirstTurnoOfDay && r === 0) {
+                            html += '<td rowspan="' + totalDayRows + '" class="py-2 px-3 align-top border-r border-b border-slate-200/80 bg-white font-bold text-slate-800 text-xs">' +
+                                '<div>' + dateStr + '</div>' +
+                                (Auth.canEdit() ? '<button type="button" aria-label="Editar operaciones del ' + dateStr + '" data-action="edit-mercosur" data-key="' + key + '" class="mercosur-edit-btn text-[10px] text-blue-600 hover:underline font-bold mt-1 block focus:outline-none focus:ring-1 focus:ring-blue-500">Editar</button>' : '') +
+                            '</td>';
+                        }
+
+                        if (r === 0) {
+                            html += '<td rowspan="' + count + '" class="py-2 px-2 align-top text-center border-r border-b border-slate-200/80" style="' + tdTurnoBg + '">' + badgeHTML + '</td>' +
+                                    '<td rowspan="' + count + '" class="py-2 px-3 align-top font-bold text-slate-700 border-r border-b border-slate-200/80 text-xs" style="' + tdTurnoBg + '">' + 
+                                        (Utils.escapeHTML(sup) || '<span class="text-slate-300 font-normal" aria-hidden="true">-</span><span class="sr-only">Sin supervisor</span>') + 
+                                    '</td>';
+                        }
+
+                        var borderBottomClass = (r === count - 1) ? " border-b border-slate-200/80" : " border-b border-slate-100";
+                        var dash = '<span class="text-slate-300" aria-hidden="true">-</span><span class="sr-only">Vacío</span>';
+
+                        if (acts.length === 0) {
+                            html += '<td class="py-1.5 px-3 italic text-slate-400 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">Sin faenas</td>' +
+                                    '<td class="py-1.5 px-3 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + dash + '</td>' +
+                                    '<td class="py-1.5 px-2.5 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + dash + '</td>' +
+                                    '<td class="py-1.5 px-3 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + dash + '</td>' +
+                                    '<td class="py-1.5 px-3 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + dash + '</td>' +
+                                    '<td class="py-1.5 px-3' + borderBottomClass + '" style="' + tdTurnoBg + '">' + dash + '</td>';
+                        } else {
+                            var a = acts[r];
+                            html += '<td class="py-1.5 px-3 font-medium text-slate-800 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' +
+                                        (a.isSubRow ? '<span class="text-slate-400 mr-1" aria-hidden="true">↳</span><span class="sr-only">Subactividad</span>' : '') + (a.actividad ? Utils.escapeHTML(a.actividad) : dash) +
+                                    '</td>' +
+                                    '<td class="py-1.5 px-3 text-slate-600 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + (a.calidad ? Utils.escapeHTML(a.calidad) : dash) + '</td>' +
+                                    '<td class="py-1.5 px-2.5 font-mono text-slate-700 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + (a.tmh ? Utils.escapeHTML(a.tmh) : dash) + '</td>' +
+                                    '<td class="py-1.5 px-3 font-semibold text-slate-800 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + (a.ubicacion ? Utils.escapeHTML(a.ubicacion) : dash) + '</td>' +
+                                    '<td class="py-1.5 px-3 text-slate-500 text-[11px] border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + (a.comentarios ? Utils.escapeHTML(a.comentarios) : dash) + '</td>' +
+                                    '<td class="py-1.5 px-3 text-slate-600 border-r' + borderBottomClass + '" style="' + tdTurnoBg + '">' + (a.equipo ? Utils.escapeHTML(a.equipo) : dash) + '</td>';
+                        }
+
+                        html += '</tr>';
+                    }
+
+                    return html;
+                },
+
+                refreshIcons: function (containerNode) {
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        requestAnimationFrame(function () {
+                            if (containerNode && containerNode.nodeType === 1) {
+                                window.lucide.createIcons({ root: containerNode });
+                            } else {
+                                window.lucide.createIcons();
+                            }
+                        });
+                    }
+                }
+            };
+
+            var Controller = {
+                init: function () {
+                    console.info("Aplicación iniciada. Arquitectura lista para backend real en /api/v1/");
+                    Controller.bindDOMEvents();
+                    Controller.populateSelects();
+                    
+                    document.getElementById('mercosurStart').value = Utils.formatYMD(State.mercosurStart);
+                    document.getElementById('mercosurEnd').value = Utils.formatYMD(State.mercosurEnd);
+
+                    Render.refreshIcons();
+                },
+
+                bindDOMEvents: function () {
+                    document.getElementById('loginForm').addEventListener('submit', Controller.handleLogin);
+                    document.getElementById('btnLogout').addEventListener('click', Controller.logout);
+
+                    document.getElementById('btnTabOperaciones').addEventListener('click', function () { Controller.switchModule('operaciones'); });
+                    document.getElementById('btnTabMercosur').addEventListener('click', function () { Controller.switchModule('mercosur'); });
+                    document.getElementById('btnPrintReport').addEventListener('click', function () { window.print(); });
+
+                    document.getElementById('btnPrevMonth').addEventListener('click', function () { Controller.changeMonth(-1); });
+                    document.getElementById('btnNextMonth').addEventListener('click', function () { Controller.changeMonth(1); });
+                    document.getElementById('selectMonth').addEventListener('change', Controller.handleDateSelect);
+                    document.getElementById('selectYear').addEventListener('change', Controller.handleDateSelect);
+
+                    document.getElementById('mercosurStart').addEventListener('change', Controller.applyMercosurDates);
+                    document.getElementById('mercosurEnd').addEventListener('change', Controller.applyMercosurDates);
+                    document.getElementById('btnQuickRange7').addEventListener('click', function () { Controller.setMercosurQuickRange(7); });
+                    document.getElementById('btnQuickRange14').addEventListener('click', function () { Controller.setMercosurQuickRange(14); });
+                    document.getElementById('btnQuickRangeMonth').addEventListener('click', function () { Controller.setMercosurQuickRange('month'); });
+                    document.getElementById('btnExportImage').addEventListener('click', Controller.exportMercosurImage);
+
+                    document.getElementById('mercosurTableBody').addEventListener('click', function (e) {
+                        var target = e.target.closest('button[data-action="edit-mercosur"]');
+                        if (target) {
+                            var key = target.getAttribute('data-key');
+                            if (key) Controller.openDayEditor(key);
+                        }
+                    });
+
+                    document.getElementById('mercosurDayChips').addEventListener('click', function(e) {
+                        var btn = e.target.closest('button[data-day-idx]');
+                        if (btn) {
+                            var idx = parseInt(btn.getAttribute('data-day-idx'), 10);
+                            if (!isNaN(idx)) Controller.toggleMercosurDay(idx);
+                        }
+                    });
+
+                    // MODAL FAENAS
+                    document.getElementById('dayEditorModal').addEventListener('click', Controller.closeEditorModal);
+                    document.getElementById('dayEditorModalContent').addEventListener('click', function (e) { e.stopPropagation(); });
+                    document.getElementById('dayEditorModal').addEventListener('keydown', function (e) { A11y.trapFocus(e, 'dayEditorModalContent'); });
+                    document.getElementById('btnCloseEditorModalX').addEventListener('click', Controller.closeEditorModal);
+                    document.getElementById('btnCloseEditorBottomBtn').addEventListener('click', Controller.closeEditorModal);
+                    document.getElementById('modalFeriadoSwitch').addEventListener('change', Controller.handleFeriadoToggle);
+                    
+                    document.getElementById('btnAddPrincipalA').addEventListener('click', function () { Controller.addTableRow('A', false); });
+                    document.getElementById('btnAddSubA').addEventListener('click', function () { Controller.addTableRow('A', true); });
+                    document.getElementById('btnAddPrincipalB').addEventListener('click', function () { Controller.addTableRow('B', false); });
+                    document.getElementById('btnAddSubB').addEventListener('click', function () { Controller.addTableRow('B', true); });
+
+                    document.getElementById('btnClearDayBtn').addEventListener('click', Controller.clearDayData);
+                    document.getElementById('btnCopyPrevDayBtn').addEventListener('click', Controller.copyFromPreviousDay);
+                    document.getElementById('btnSaveModal').addEventListener('click', Controller.saveDayData);
+
+                    // MODAL IMAGEN
+                    document.getElementById('imagePreviewModal').addEventListener('click', Controller.closeImageModal);
+                    document.getElementById('imagePreviewModalContent').addEventListener('click', function (e) { e.stopPropagation(); });
+                    document.getElementById('imagePreviewModal').addEventListener('keydown', function (e) { A11y.trapFocus(e, 'imagePreviewModalContent'); });
+                    document.getElementById('btnCloseImgModalX').addEventListener('click', Controller.closeImageModal);
+                    document.getElementById('btnCloseImgModalBottom').addEventListener('click', Controller.closeImageModal);
+
+                    // MODAL GENÉRICO
+                    document.getElementById('genericConfirmCancelBtn').addEventListener('click', function () { Controller.resolveConfirm(false); });
+                    document.getElementById('genericConfirmOkBtn').addEventListener('click', function () { Controller.resolveConfirm(true); });
+                    document.getElementById('genericConfirmModal').addEventListener('keydown', function (e) { A11y.trapFocus(e, 'genericConfirmModalContent'); });
+
+                    window.addEventListener('keydown', function (e) {
+                        if (e.key === 'Escape') {
+                            Controller.closeEditorModal();
+                            Controller.closeImageModal();
+                            Controller.resolveConfirm(false);
+                        }
+                    });
+                },
+
+                populateSelects: function () {
+                    var sM = document.getElementById('selectMonth');
+                    var sY = document.getElementById('selectYear');
+                    sM.innerHTML = '';
+                    sY.innerHTML = '';
+
+                    MONTH_NAMES.forEach(function (m, idx) {
+                        var opt = document.createElement('option');
+                        opt.value = idx;
+                        opt.textContent = m;
+                        sM.appendChild(opt);
+                    });
+
+                    for (var y = 2024; y <= 2032; y++) {
+                        var optY = document.createElement('option');
+                        optY.value = y;
+                        optY.textContent = y;
+                        sY.appendChild(optY);
+                    }
+
+                    sM.value = State.currentMonth;
+                    sY.value = State.currentYear;
+                },
+
+                handleLogin: function (e) {
+                    if (e) e.preventDefault();
+                    var u = document.getElementById('loginUser').value.trim().toLowerCase();
+                    var p = document.getElementById('loginPass').value.trim();
+                    var err = document.getElementById('loginError');
+                    var btn = document.getElementById('btnLoginSubmit');
+
+                    btn.disabled = true;
+                    btn.innerHTML = '<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin"></i> Validando...';
+                    Render.refreshIcons(btn);
+
+                    BackendAPI.login(u, p).then(function(authResult) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<span>Ingresar al Sistema</span><i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>';
+                        Render.refreshIcons(btn);
+
+                        if (authResult.success) {
+                            State.currentUser = { name: authResult.data.name, role: authResult.data.role };
+                            State.sessionToken = authResult.data.token;
+                            err.classList.add('hidden');
+                            
+                            document.getElementById('loginScreen').classList.add('hidden');
+                            document.getElementById('appContainer').classList.remove('hidden');
+
+                            document.getElementById('sessionUserName').textContent = State.currentUser.name;
+                            var badge = document.getElementById('sessionRoleBadge');
+
+                            if (State.currentUser.role === 'admin') {
+                                badge.textContent = 'Acceso Completo';
+                                badge.className = 'text-[11px] font-semibold text-emerald-600 leading-tight';
+                            } else {
+                                badge.textContent = 'Solo Lectura';
+                                badge.className = 'text-[11px] font-semibold text-amber-600 leading-tight';
+                            }
+
+                            Controller.updateHeaderTitle();
+                            Storage.load().then(function() {
+                                Render.calendar();
+                                Render.mercosur();
+                            });
+                        } else {
+                            err.textContent = "Usuario o contraseña inválidos. Intente nuevamente.";
+                            err.classList.remove('hidden');
+                        }
+                    });
+                },
+
+                logout: function () {
+                    State.currentUser = null;
+                    State.sessionToken = null;
+                    document.getElementById('loginUser').value = '';
+                    document.getElementById('loginPass').value = '';
+                    document.getElementById('loginError').classList.add('hidden');
+                    
+                    document.getElementById('appContainer').classList.add('hidden');
+                    document.getElementById('loginScreen').classList.remove('hidden');
+                },
+
+                switchModule: function (mod) {
+                    State.currentModule = mod;
+                    var btnOp = document.getElementById('btnTabOperaciones');
+                    var btnMe = document.getElementById('btnTabMercosur');
+                    var viewOp = document.getElementById('moduleOperaciones');
+                    var viewMe = document.getElementById('moduleMercosur');
+
+                    if (mod === 'operaciones') {
+                        btnOp.setAttribute('aria-current', 'page');
+                        btnMe.removeAttribute('aria-current');
+                        btnOp.className = "flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-blue-600 bg-blue-50/70 text-blue-700 shadow-sm";
+                        btnMe.className = "flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300";
+                        viewOp.classList.remove('hidden');
+                        viewMe.classList.add('hidden');
+                    } else {
+                        btnMe.setAttribute('aria-current', 'page');
+                        btnOp.removeAttribute('aria-current');
+                        btnMe.className = "flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-indigo-600 bg-indigo-50/70 text-indigo-700 shadow-sm";
+                        btnOp.className = "flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300";
+                        viewMe.classList.remove('hidden');
+                        viewOp.classList.add('hidden');
+                        Render.mercosur();
+                    }
+                    Controller.updateHeaderTitle();
+                },
+
+                updateHeaderTitle: function () {
+                    var title = State.currentModule === 'operaciones'
+                        ? 'Calendario de Operaciones - ' + MONTH_NAMES[State.currentMonth] + ' ' + State.currentYear
+                        : 'Planificación Mercosur';
+                    document.getElementById('windowHeaderTitle').textContent = title;
+                },
+
+                changeMonth: function (delta) {
+                    State.currentMonth += delta;
+                    if (State.currentMonth < 0) { State.currentMonth = 11; State.currentYear--; }
+                    if (State.currentMonth > 11) { State.currentMonth = 0; State.currentYear++; }
+                    
+                    var sY = document.getElementById('selectYear');
+                    var exists = false;
+                    for (var o = 0; o < sY.options.length; o++) {
+                        if (parseInt(sY.options[o].value, 10) === State.currentYear) {
+                            exists = true;
+                            break;
+                        }
+                    }
+                    if (!exists) {
+                        var opt = document.createElement('option');
+                        opt.value = State.currentYear;
+                        opt.textContent = State.currentYear;
+                        if (sY.options.length > 0 && State.currentYear < parseInt(sY.options[0].value, 10)) {
+                            sY.insertBefore(opt, sY.firstChild);
+                        } else {
+                            sY.appendChild(opt);
+                        }
+                    }
+
+                    document.getElementById('selectMonth').value = State.currentMonth;
+                    document.getElementById('selectYear').value = State.currentYear;
+                    Controller.updateHeaderTitle();
+                    Render.calendar();
+                },
+
+                handleDateSelect: function () {
+                    var m = parseInt(document.getElementById('selectMonth').value, 10);
+                    var y = parseInt(document.getElementById('selectYear').value, 10);
+                    if (!isNaN(m)) State.currentMonth = m;
+                    if (!isNaN(y)) State.currentYear = y;
+                    Controller.updateHeaderTitle();
+                    Render.calendar();
+                },
+
+                applyMercosurDates: function () {
+                    var s = document.getElementById('mercosurStart').value;
+                    var e = document.getElementById('mercosurEnd').value;
+                    if (s && e) {
+                        var startDate = Utils.parseYMD(s);
+                        var endDate = Utils.parseYMD(e);
+                        
+                        if (endDate < startDate) {
+                            endDate = new Date(startDate);
+                            document.getElementById('mercosurEnd').value = Utils.formatYMD(endDate);
+                        }
+
+                        var msDay = 24 * 60 * 60 * 1000;
+                        var diffDays = Math.round((endDate - startDate) / msDay);
+                        if (diffDays > 31) {
+                            endDate = new Date(startDate);
+                            endDate.setDate(endDate.getDate() + 30);
+                            document.getElementById('mercosurEnd').value = Utils.formatYMD(endDate);
+                            Controller.showAlert("Por legibilidad y rendimiento operacional, el rango máximo permitido es de 31 días. Se ajustó automáticamente la fecha final.", "Aviso de Rango");
+                        }
+
+                        State.mercosurStart = startDate;
+                        State.mercosurEnd = endDate;
+                        State.visibleMercosurDays = null;
+                        Render.mercosur();
+                    }
+                },
+
+                setMercosurQuickRange: function (type) {
+                    var start = new Date(State.mercosurStart);
+                    if (type === 7) {
+                        State.mercosurEnd = new Date(start);
+                        State.mercosurEnd.setDate(State.mercosurEnd.getDate() + 6);
+                    } else if (type === 14) {
+                        State.mercosurEnd = new Date(start);
+                        State.mercosurEnd.setDate(State.mercosurEnd.getDate() + 13);
+                    } else if (type === 'month') {
+                        State.mercosurStart = new Date(State.currentYear, State.currentMonth, 1);
+                        State.mercosurEnd = new Date(State.currentYear, State.currentMonth + 1, 0);
+                    }
+                    document.getElementById('mercosurStart').value = Utils.formatYMD(State.mercosurStart);
+                    document.getElementById('mercosurEnd').value = Utils.formatYMD(State.mercosurEnd);
+                    State.visibleMercosurDays = null;
+                    Render.mercosur();
+                },
+
+                toggleMercosurDay: function (idx) {
+                    if (State.visibleMercosurDays === null) return;
+                    var pos = State.visibleMercosurDays.indexOf(idx);
+                    if (pos !== -1) State.visibleMercosurDays.splice(pos, 1);
+                    else State.visibleMercosurDays.push(idx);
+                    Render.mercosur();
+                },
+
+                openDayEditor: function (key) {
+                    State.selectedDayKey = key;
+                    var dParts = key.split('-');
+                    document.getElementById('editorModalTitle').textContent = 'Operaciones: ' + dParts[2] + '/' + dParts[1] + '/' + dParts[0];
+
+                    var data = State.data.days[key] || { feriado: false, supervisorA: "", supervisorB: "", turnoA: [], turnoB: [] };
+
+                    document.getElementById('modalFeriadoSwitch').checked = !!data.feriado;
+                    document.getElementById('supAInput').value = data.supervisorA || '';
+                    document.getElementById('supBInput').value = data.supervisorB || '';
+
+                    var tbA = document.getElementById('tbodyTurnoA');
+                    var tbB = document.getElementById('tbodyTurnoB');
+                    tbA.innerHTML = '';
+                    tbB.innerHTML = '';
+
+                    var rowsA = (data.turnoA && data.turnoA.length > 0) ? data.turnoA : [{}];
+                    var rowsB = (data.turnoB && data.turnoB.length > 0) ? data.turnoB : [{}];
+
+                    rowsA.forEach(function (a) { Controller.addTableRow('A', a.isSubRow, a); });
+                    rowsB.forEach(function (b) { Controller.addTableRow('B', b.isSubRow, b); });
+
+                    Controller.applyEditorSecurity();
+                    Controller.applyFeriadoUI();
+
+                    A11y.openModal('dayEditorModal');
+                },
+
+                closeEditorModal: function () {
+                    A11y.closeModal('dayEditorModal');
+                },
+
+                applyEditorSecurity: function () {
+                    var canEdit = Auth.canEdit();
+                    var banner = document.getElementById('editorReadOnlyBanner');
+                    var adminTools = document.getElementById('editorAdminTools');
+                    var btnSave = document.getElementById('btnSaveModal');
+                    var actionBars = document.querySelectorAll('.editor-action-bar');
+                    var actHeaderCols = document.querySelectorAll('.act-header-col');
+
+                    if (canEdit) {
+                        banner.classList.add('hidden');
+                        adminTools.classList.remove('hidden');
+                        btnSave.classList.remove('hidden');
+                        actionBars.forEach(function (el) { el.classList.remove('hidden'); });
+                        actHeaderCols.forEach(function (el) { el.classList.remove('hidden'); });
+                        document.getElementById('modalFeriadoSwitch').disabled = false;
+                        document.getElementById('supAInput').disabled = false;
+                        document.getElementById('supBInput').disabled = false;
+                    } else {
+                        banner.classList.remove('hidden');
+                        adminTools.classList.add('hidden');
+                        btnSave.classList.add('hidden');
+                        actionBars.forEach(function (el) { el.classList.add('hidden'); });
+                        actHeaderCols.forEach(function (el) { el.classList.add('hidden'); });
+                        document.getElementById('modalFeriadoSwitch').disabled = true;
+                        document.getElementById('supAInput').disabled = true;
+                        document.getElementById('supBInput').disabled = true;
+                    }
+                },
+
+                handleFeriadoToggle: function () {
+                    Controller.applyFeriadoUI();
+                },
+
+                applyFeriadoUI: function () {
+                    var isChecked = document.getElementById('modalFeriadoSwitch').checked;
+                    var container = document.getElementById('editorTurnosContainer');
+                    if (isChecked) {
+                        container.classList.add('opacity-30', 'pointer-events-none');
+                    } else {
+                        container.classList.remove('opacity-30', 'pointer-events-none');
+                    }
+                },
+
+                addTableRow: function (trn, isSub, data) {
+                    data = data || {};
+                    var canEdit = Auth.canEdit();
+                    var tbody = document.getElementById('tbodyTurno' + trn);
+
+                    if (isSub) {
+                        var rows = tbody.querySelectorAll('tr');
+                        var hasMain = false;
+                        for (var rIdx = 0; rIdx < rows.length; rIdx++) {
+                            if (!rows[rIdx].querySelector('.row-is-sub')) {
+                                hasMain = true;
+                                break;
+                            }
+                        }
+                        if (!hasMain) {
+                            Controller.addTableRow(trn, false);
+                        }
+                    }
+
+                    var tr = document.createElement('tr');
+                    var rowId = Utils.uid();
+                    tr.id = rowId;
+                    tr.className = "hover:bg-slate-50 transition-colors";
+
+                    var inpClass = "w-full bg-transparent border-none text-xs py-1 px-1.5 focus:ring-1 focus:ring-blue-500 rounded outline-none text-slate-800 font-medium " +
+                        (canEdit ? "" : "pointer-events-none");
+
+                    var sAct = Utils.escapeHTML(data.actividad || '');
+                    var sCal = Utils.escapeHTML(data.calidad || '');
+                    var sTmh = Utils.escapeHTML(data.tmh || '');
+                    var sUbi = Utils.escapeHTML(data.ubicacion || '');
+                    var sCom = Utils.escapeHTML(data.comentarios || '');
+                    var sEqp = Utils.escapeHTML(data.equipo || '');
+
+                    tr.innerHTML = 
+                        '<td class="p-1 border-b border-slate-100">' +
+                            (isSub 
+                                ? '<input type="hidden" class="row-is-sub" value="1"><div class="text-[11px] text-slate-400 flex items-center gap-1 pl-2 font-medium"><i data-lucide="corner-down-right" class="w-3 h-3" aria-hidden="true"></i> <span class="sr-only">Sub-actividad</span>Detalle</div>' 
+                                : '<input type="text" aria-label="Actividad" class="row-act ' + inpClass + '" list="actividadesList" placeholder="Actividad..." value="' + sAct + '"' + (canEdit ? '' : ' disabled') + '>') +
+                        '</td>' +
+                        '<td class="p-1 border-b border-slate-100"><input type="text" aria-label="Calidad" class="row-cal ' + inpClass + '" list="calidadesList" placeholder="Calidad..." value="' + sCal + '"' + (canEdit ? '' : ' disabled') + '></td>' +
+                        '<td class="p-1 border-b border-slate-100"><input type="number" step="any" aria-label="Toneladas Húmedas" class="row-tmh ' + inpClass + ' font-mono" placeholder="0" value="' + sTmh + '"' + (canEdit ? '' : ' disabled') + '></td>' +
+                        '<td class="p-1 border-b border-slate-100"><input type="text" aria-label="Ubicación" class="row-ubi ' + inpClass + '" placeholder="Ubicación..." value="' + sUbi + '"' + (canEdit ? '' : ' disabled') + '></td>' +
+                        '<td class="p-1 border-b border-slate-100"><input type="text" aria-label="Comentarios" class="row-com ' + inpClass + ' text-[11px] text-slate-500" placeholder="Comentarios..." value="' + sCom + '"' + (canEdit ? '' : ' disabled') + '></td>' +
+                        '<td class="p-1 border-b border-slate-100"><input type="text" aria-label="Equipo" class="row-eqp ' + inpClass + '" list="equiposList" placeholder="Equipo..." value="' + sEqp + '"' + (canEdit ? '' : ' disabled') + '></td>' +
+                        (canEdit 
+                            ? '<td class="p-1 border-b border-slate-100 text-center"><button type="button" aria-label="Eliminar fila de actividad" class="btn-delete-row p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"><i data-lucide="trash-2" class="w-3.5 h-3.5" aria-hidden="true"></i></button></td>'
+                            : '');
+
+                    if (canEdit) {
+                        var delBtn = tr.querySelector('.btn-delete-row');
+                        if (delBtn) {
+                            delBtn.addEventListener('click', function () { Controller.deleteTableRow(rowId); });
+                        }
+                    }
+
+                    tbody.appendChild(tr);
+                    Render.refreshIcons(tr);
+                },
+
+                deleteTableRow: function (rowId) {
+                    if (!Auth.canEdit()) return;
+                    var el = document.getElementById(rowId);
+                    if (el) el.remove();
+                },
+
+                saveDayData: function () {
+                    if (!Auth.canEdit() || !State.selectedDayKey) return;
+                    var key = State.selectedDayKey;
+                    var isFeriado = document.getElementById('modalFeriadoSwitch').checked;
+
+                    if (isFeriado) {
+                        State.data.days[key] = { feriado: true, supervisorA: "", supervisorB: "", turnoA: [], turnoB: [] };
+                    } else {
+                        var supA = document.getElementById('supAInput').value.trim();
+                        var supB = document.getElementById('supBInput').value.trim();
+                        var actsA = Controller.extractTableRows('A');
+                        var actsB = Controller.extractTableRows('B');
+
+                        if (supA || supB || actsA.length > 0 || actsB.length > 0) {
+                            State.data.days[key] = {
+                                feriado: false,
+                                supervisorA: supA,
+                                supervisorB: supB,
+                                turnoA: actsA,
+                                turnoB: actsB
+                            };
+                        } else {
+                            delete State.data.days[key];
+                        }
+                    }
+
+                    Storage.save();
+                    Render.calendar();
+                    Render.mercosur();
+                    Controller.closeEditorModal();
+                },
+
+                extractTableRows: function (trn) {
+                    var rows = document.getElementById('tbodyTurno' + trn).querySelectorAll('tr');
+                    var result = [];
+                    var currentParentAct = "";
+
+                    rows.forEach(function (r) {
+                        var isSub = !!r.querySelector('.row-is-sub');
+                        var actEl = r.querySelector('.row-act');
+                        
+                        var act = "";
+                        if (isSub) {
+                            act = currentParentAct || "Sub-detalle";
+                        } else {
+                            act = (actEl && actEl.value ? actEl.value : '').trim();
+                            if (act) currentParentAct = act;
+                        }
+
+                        var getVal = function (selector) {
+                            var el = r.querySelector(selector);
+                            return (el && el.value ? el.value : '').trim();
+                        };
+
+                        var cal = getVal('.row-cal');
+                        var tmh = getVal('.row-tmh');
+                        var ubi = getVal('.row-ubi');
+                        var com = getVal('.row-com');
+                        var eqp = getVal('.row-eqp');
+
+                        if (act || cal || tmh || ubi || com || eqp) {
+                            result.push({
+                                actividad: act,
+                                calidad: cal,
+                                tmh: tmh,
+                                ubicacion: ubi,
+                                comentarios: com,
+                                equipo: eqp,
+                                isSubRow: isSub
+                            });
+                        }
+                    });
+                    return result;
+                },
+
+                clearDayData: function () {
+                    if (!Auth.canEdit() || !State.selectedDayKey) return;
+                    Controller.showConfirm("¿Deseas vaciar todas las operaciones de este día? El día volverá a estar completamente en blanco.", function () {
+                        delete State.data.days[State.selectedDayKey];
+                        Storage.save();
+                        Render.calendar();
+                        Render.mercosur();
+                        Controller.closeEditorModal();
+                    });
+                },
+
+                copyFromPreviousDay: function () {
+                    if (!Auth.canEdit() || !State.selectedDayKey) return;
+                    var curDate = Utils.parseYMD(State.selectedDayKey);
+                    curDate.setDate(curDate.getDate() - 1);
+                    var prevKey = Utils.formatYMD(curDate);
+                    var prevData = State.data.days[prevKey];
+
+                    if (!prevData) {
+                        Controller.showAlert("No se encontraron registros en el día anterior (" + prevKey + ") para duplicar.", "Día sin Datos");
+                        return;
+                    }
+
+                    document.getElementById('modalFeriadoSwitch').checked = !!prevData.feriado;
+                    document.getElementById('supAInput').value = prevData.supervisorA || '';
+                    document.getElementById('supBInput').value = prevData.supervisorB || '';
+
+                    var tbA = document.getElementById('tbodyTurnoA');
+                    var tbB = document.getElementById('tbodyTurnoB');
+                    tbA.innerHTML = '';
+                    tbB.innerHTML = '';
+
+                    var rowsA = (prevData.turnoA && prevData.turnoA.length > 0) ? prevData.turnoA : [{}];
+                    var rowsB = (prevData.turnoB && prevData.turnoB.length > 0) ? prevData.turnoB : [{}];
+
+                    rowsA.forEach(function (a) { Controller.addTableRow('A', a.isSubRow, a); });
+                    rowsB.forEach(function (b) { Controller.addTableRow('B', b.isSubRow, b); });
+
+                    Controller.applyFeriadoUI();
+                },
+
+                exportMercosurImage: function () {
+                    var origTable = document.getElementById('mercosurMainTable');
+                    if (!origTable) return;
+
+                    var container = document.createElement('div');
+                    container.style.position = 'fixed';
+                    container.style.left = '0';
+                    container.style.top = '0';
+                    container.style.zIndex = '-9999';
+                    container.style.pointerEvents = 'none';
+                    container.style.width = '1050px';
+                    container.style.backgroundColor = '#ffffff';
+                    container.style.padding = '24px';
+                    container.style.fontFamily = "'Inter', sans-serif";
+
+                    var headerHtml = '<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px;">' +
+                        '<div>' +
+                            '<div style="font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: 1px;">SEPA</div>' +
+                            '<div style="font-size: 10px; font-weight: 700; color: #64748b; letter-spacing: 2px; text-transform: uppercase;">Planificación de Operaciones - Mercosur</div>' +
+                        '</div>' +
+                        '<div style="text-align: right; font-size: 11px; font-weight: 600; color: #475569;">' +
+                            'Rango: ' + Utils.formatYMD(State.mercosurStart) + ' al ' + Utils.formatYMD(State.mercosurEnd) + '<br>' +
+                            'Generado: ' + new Date().toLocaleDateString('es-CL') +
+                        '</div>' +
+                    '</div>';
+
+                    container.innerHTML = headerHtml;
+
+                    var clone = origTable.cloneNode(true);
+                    clone.removeAttribute('id');
+                    var elementsWithId = clone.querySelectorAll('[id]');
+                    elementsWithId.forEach(function (el) { el.removeAttribute('id'); });
+                    
+                    var editBtns = clone.querySelectorAll('.mercosur-edit-btn');
+                    editBtns.forEach(function (btn) { btn.remove(); });
+
+                    clone.style.width = '100%';
+                    clone.style.borderCollapse = 'collapse';
+                    clone.style.border = '1px solid #cbd5e1';
+
+                    var allTh = clone.querySelectorAll('th');
+                    allTh.forEach(function (th) {
+                        th.style.border = '1px solid #cbd5e1';
+                        th.style.padding = '8px 10px';
+                        th.style.backgroundColor = '#f1f5f9';
+                        th.style.color = '#1e293b';
+                        th.style.fontSize = '11px';
+                    });
+
+                    var allTd = clone.querySelectorAll('td');
+                    allTd.forEach(function (td) {
+                        td.style.border = '1px solid #e2e8f0';
+                        td.style.padding = '6px 10px';
+                        td.style.fontSize = '11px';
+                    });
+
+                    container.appendChild(clone);
+                    document.body.appendChild(container);
+
+                    var banner = document.getElementById('clipboardStatusBanner');
+                    var bannerText = document.getElementById('clipboardStatusText');
+                    var bannerIcon = document.getElementById('clipboardStatusIcon');
+                    if (banner) banner.classList.add('hidden');
+
+                    html2canvas(container, {
+                        scale: 2,
+                        useCORS: true,
+                        backgroundColor: '#ffffff'
+                    }).then(function (canvas) {
+                        document.body.removeChild(container);
+                        var dataUrl = canvas.toDataURL('image/png');
+
+                        document.getElementById('exportImgPreview').src = dataUrl;
+                        document.getElementById('btnDownloadImg').href = dataUrl;
+                        
+                        A11y.openModal('imagePreviewModal');
+
+                        if (navigator.clipboard && window.ClipboardItem) {
+                            canvas.toBlob(function (blob) {
+                                if (blob) {
+                                    navigator.clipboard.write([
+                                        new ClipboardItem({ 'image/png': blob })
+                                    ]).then(function () {
+                                        if (banner && bannerText) {
+                                            banner.className = "bg-emerald-50 text-emerald-800 text-xs px-4 py-2 rounded-lg border border-emerald-200 mb-3 flex items-center gap-2";
+                                            if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'clipboard-check');
+                                            bannerText.innerHTML = '¡Imagen copiada al portapapeles! Lista para pegar en tu correo con <strong>Ctrl + V</strong>';
+                                            banner.classList.remove('hidden');
+                                            Render.refreshIcons(banner);
+                                        }
+                                    }).catch(function (err) {
+                                        console.warn("Permiso de portapapeles bloqueado por navegador:", err);
+                                        if (banner && bannerText) {
+                                            banner.className = "bg-amber-50 text-amber-800 text-xs px-4 py-2 rounded-lg border border-amber-200 mb-3 flex items-center gap-2";
+                                            if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'info');
+                                            bannerText.innerHTML = 'Haga clic en <strong>"Descargar Imagen"</strong> para guardarla y adjuntarla.';
+                                            banner.classList.remove('hidden');
+                                            Render.refreshIcons(banner);
+                                        }
+                                    });
+                                }
+                            });
+                        } else {
+                            if (banner && bannerText) {
+                                banner.className = "bg-slate-50 text-slate-700 text-xs px-4 py-2 rounded-lg border border-slate-200 mb-3 flex items-center gap-2";
+                                if (bannerIcon) bannerIcon.setAttribute('data-lucide', 'download');
+                                bannerText.innerHTML = 'Descargue la imagen generada usando el botón inferior.';
+                                banner.classList.remove('hidden');
+                                Render.refreshIcons(banner);
+                            }
+                        }
+                    }).catch(function (err) {
+                        if (container.parentNode) document.body.removeChild(container);
+                        console.error("Error al renderizar canvas:", err);
+                        Controller.showAlert("Ocurrió un problema de renderizado al generar la imagen.", "Error de Exportación");
+                    });
+                },
+
+                closeImageModal: function () {
+                    A11y.closeModal('imagePreviewModal');
+                },
+
+                showConfirm: function (msg, callback) {
+                    document.getElementById('genericConfirmTitle').textContent = "Confirmación Requerida";
+                    document.getElementById('genericConfirmText').textContent = msg;
+                    
+                    var cancelBtn = document.getElementById('genericConfirmCancelBtn');
+                    var okBtn = document.getElementById('genericConfirmOkBtn');
+                    cancelBtn.classList.remove('hidden');
+                    okBtn.textContent = "Continuar";
+                    okBtn.className = "px-3.5 py-1.5 text-xs font-bold text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors";
+                    
+                    State.pendingConfirmAction = callback;
+                    A11y.openModal('genericConfirmModal');
+                },
+
+                showAlert: function (msg, title) {
+                    document.getElementById('genericConfirmTitle').textContent = title || "Notificación";
+                    document.getElementById('genericConfirmText').textContent = msg;
+                    
+                    var cancelBtn = document.getElementById('genericConfirmCancelBtn');
+                    var okBtn = document.getElementById('genericConfirmOkBtn');
+                    cancelBtn.classList.add('hidden');
+                    okBtn.textContent = "Entendido";
+                    okBtn.className = "px-3.5 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors";
+                    
+                    State.pendingConfirmAction = null;
+                    A11y.openModal('genericConfirmModal');
+                },
+
+                resolveConfirm: function (accepted) {
+                    A11y.closeModal('genericConfirmModal');
+                    if (accepted && typeof State.pendingConfirmAction === 'function') {
+                        State.pendingConfirmAction();
+                    }
+                    State.pendingConfirmAction = null;
+                }
+            };
+
+            // Arranque
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', Controller.init);
+            } else {
+                Controller.init();
+            }
+
+            // Exposición vacía para sellar el entorno de ejecución contra inyecciones JS
+            return Object.freeze({});
+        })();
+    </script>
+</body>
+</html>
